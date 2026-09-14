@@ -99,36 +99,37 @@ flowchart LR
 ### 1. Unified Layer: T-SQL Virtual View vs. Physical Delta MERGE
 
 * **Decision:** Implemented a T-SQL `UNION ALL` view (`dbo.gold_vw_all_flights_unified`) in the SQL Analytics Endpoint instead of physically merging streaming records into `gold_fact_flights`.
-**Rationale:**
-* **Zero Storage Duplication:** Eliminates double-storing streaming records inside historical batch tables.
-* **Prevents Write Lock Contention:** Avoids Delta write lock collisions when batch and streaming pipelines attempt to write to storage simultaneously.
-* **Instant Visibility:** Telemetry written to `silver_live_telemetry` is immediately exposed in reports without requiring batch reprocessing.
+
+* **Rationale:**
+*  **Zero Storage Duplication:** Eliminates double-storing streaming records inside historical batch tables.
+*  **Prevents Write Lock Contention:** Avoids Delta write lock collisions when batch and streaming pipelines attempt to write to storage simultaneously.
+*  **Instant Visibility:** Telemetry written to `silver_live_telemetry` is immediately exposed in reports without requiring batch reprocessing.
 
 
 
 ### 2. Streaming Strategy: Micro-Batch (`availableNow=True`) vs. Continuous Streaming
 
 * **Decision:** Configured PySpark Structured Streaming using `.trigger(availableNow=True)` executed via scheduled Data Factory pipelines rather than running persistent `writeStream` jobs.
-**Rationale:**
-* **Capacity Optimization (F2 SKU):** Continuous interactive streaming jobs hold active Spark Compute Units (CUs), leading to `HTTP 430: TooManyRequestsForCapacity` errors on smaller F2 capacities.
-* **Safe Resource Release:** Micro-batching processes accumulated telemetry in 20–30 seconds, writes checkpoints, and shuts down compute safely.
+* **Rationale:**
+*  **Capacity Optimization (F2 SKU):** Continuous interactive streaming jobs hold active Spark Compute Units (CUs), leading to `HTTP 430: TooManyRequestsForCapacity` errors on smaller F2 capacities.
+*  **Safe Resource Release:** Micro-batching processes accumulated telemetry in 20–30 seconds, writes checkpoints, and shuts down compute safely.
 
 
 
 ### 3. Orchestration: Decoupled Data Factory Pipelines
 
 * **Decision:** Built two independent Data Factory pipelines (`Batch_ingestion_bronze` and `Stream_ingestion_silver`).
-**Rationale:**
-* **Isolated Execution Schedules:** Isolates resource-heavy daily batch execution from high-frequency (15-minute) streaming workloads.
-* **Fault Isolation:** Streaming network or telemetry generation failures will not stall or block daily historical financial/operational processing.
+* **Rationale:**
+*  **Isolated Execution Schedules:** Isolates resource-heavy daily batch execution from high-frequency (15-minute) streaming workloads.
+*  **Fault Isolation:** Streaming network or telemetry generation failures will not stall or block daily historical financial/operational processing.
 
 
 
 ### 4. Semantic Layer: Direct Lake Mode
 
 * **Decision:** Connected Power BI directly to OneLake Delta Parquet tables using **Direct Lake** mode.
-**Rationale:**
-* **Zero Refresh Latency:** Eliminates traditional scheduled Power BI import refreshes—data changes reflect in reports as soon as the micro-batch writes to Delta storage.
+* **Rationale:**
+*  **Zero Refresh Latency:** Eliminates traditional scheduled Power BI import refreshes—data changes reflect in reports as soon as the micro-batch writes to Delta storage.
 
 
 
