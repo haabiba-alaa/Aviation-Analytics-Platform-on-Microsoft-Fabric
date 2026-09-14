@@ -1,0 +1,36 @@
+CREATE TABLE [dbo].[silver_live_telemetry] (
+    [timestamp]                  VARCHAR (8000) NULL,
+    [flight_number]              INT            NULL,
+    [airline]                    VARCHAR (8000) NULL,
+    [origin]                     VARCHAR (8000) NULL,
+    [destination]                VARCHAR (8000) NULL,
+    [current_altitude_ft]        INT            NULL,
+    [speed_knots]                INT            NULL,
+    [departure_delay_mins]       INT            NULL,
+    [event_type]                 VARCHAR (8000) NULL,
+    [EventProcessedUtcTime]      DATETIME2 (6)  NULL,
+    [PartitionId]                BIGINT         NULL,
+    [EventEnqueuedUtcTime]       DATETIME2 (6)  NULL,
+    [event_timestamp]            DATETIME2 (6)  NULL,
+    [year]                       INT            NULL,
+    [month]                      INT            NULL,
+    [day]                        INT            NULL,
+    [airline_code]               VARCHAR (8000) NULL,
+    [origin_airport_code]        VARCHAR (8000) NULL,
+    [dest_airport_code]          VARCHAR (8000) NULL,
+    [arrival_delay_mins]         INT            NULL,
+    [is_delayed_flag]            INT            NULL,
+    [is_cancelled_flag]          INT            NULL,
+    [is_diverted_flag]           INT            NULL,
+    [cancellation_code]          VARCHAR (8000) NULL,
+    [air_system_delay_mins]      INT            NULL,
+    [security_delay_mins]        INT            NULL,
+    [airline_delay_mins]         INT            NULL,
+    [late_aircraft_delay_mins]   INT            NULL,
+    [weather_delay_mins]         INT            NULL,
+    [record_source]              VARCHAR (8000) NULL,
+    [silver_ingestion_timestamp] DATETIME2 (6)  NULL
+);
+
+
+GO

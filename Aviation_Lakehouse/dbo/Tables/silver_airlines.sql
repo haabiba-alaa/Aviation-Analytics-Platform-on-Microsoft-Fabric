@@ -1,0 +1,9 @@
+CREATE TABLE [dbo].[silver_airlines] (
+    [IATA_CODE]    VARCHAR (8000) NULL,
+    [AIRLINE]      VARCHAR (8000) NULL,
+    [AIRLINE_CODE] VARCHAR (8000) NULL,
+    [AIRLINE_NAME] VARCHAR (8000) NULL
+);
+
+
+GO

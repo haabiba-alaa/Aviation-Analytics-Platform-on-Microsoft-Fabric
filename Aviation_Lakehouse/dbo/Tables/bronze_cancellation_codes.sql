@@ -1,0 +1,7 @@
+CREATE TABLE [dbo].[bronze_cancellation_codes] (
+    [CANCELLATION_REASON]      VARCHAR (8000) NULL,
+    [CANCELLATION_DESCRIPTION] VARCHAR (8000) NULL
+);
+
+
+GO

@@ -1,0 +1,36 @@
+CREATE TABLE [dbo].[bronze_flights] (
+    [YEAR]                BIGINT         NULL,
+    [MONTH]               BIGINT         NULL,
+    [DAY]                 BIGINT         NULL,
+    [DAY_OF_WEEK]         BIGINT         NULL,
+    [AIRLINE]             VARCHAR (8000) NULL,
+    [FLIGHT_NUMBER]       BIGINT         NULL,
+    [TAIL_NUMBER]         VARCHAR (8000) NULL,
+    [ORIGIN_AIRPORT]      VARCHAR (8000) NULL,
+    [DESTINATION_AIRPORT] VARCHAR (8000) NULL,
+    [SCHEDULED_DEPARTURE] BIGINT         NULL,
+    [DEPARTURE_TIME]      BIGINT         NULL,
+    [DEPARTURE_DELAY]     BIGINT         NULL,
+    [TAXI_OUT]            BIGINT         NULL,
+    [WHEELS_OFF]          BIGINT         NULL,
+    [SCHEDULED_TIME]      BIGINT         NULL,
+    [ELAPSED_TIME]        BIGINT         NULL,
+    [AIR_TIME]            BIGINT         NULL,
+    [DISTANCE]            BIGINT         NULL,
+    [WHEELS_ON]           BIGINT         NULL,
+    [TAXI_IN]             BIGINT         NULL,
+    [SCHEDULED_ARRIVAL]   BIGINT         NULL,
+    [ARRIVAL_TIME]        BIGINT         NULL,
+    [ARRIVAL_DELAY]       BIGINT         NULL,
+    [DIVERTED]            BIGINT         NULL,
+    [CANCELLED]           BIGINT         NULL,
+    [CANCELLATION_REASON] VARCHAR (8000) NULL,
+    [AIR_SYSTEM_DELAY]    BIGINT         NULL,
+    [SECURITY_DELAY]      BIGINT         NULL,
+    [AIRLINE_DELAY]       BIGINT         NULL,
+    [LATE_AIRCRAFT_DELAY] BIGINT         NULL,
+    [WEATHER_DELAY]       BIGINT         NULL
+);
+
+
+GO
