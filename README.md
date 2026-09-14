@@ -12,25 +12,6 @@ By combining a Medallion Architecture (Bronze $\rightarrow$ Silver $\rightarrow$
 
 ## 🏗️ End-to-End System Architecture
 
-
-
-## 🧰 Tools & Microsoft Fabric Components Used
-
-| Component / Tool | Role in Architecture | Technical Details & Configuration |
-| --- | --- | --- |
-| **Microsoft Fabric F2 Capacity** | Core Infrastructure | Shared, serverless compute environment optimized to manage workloads under capacity limits. |
-| **Dataflow Gen2** | Batch Ingestion | Extracts and loads 5M+ historical CSV records into Delta Lake storage. |
-| **Fabric Eventstream** | Streaming Ingestion | Ingests real-time JSON flight telemetry into raw Bronze Lakehouse tables. |
-| **PySpark Notebooks** | Data Transformation | Handles schema enforcement, cleansing, delay metric logic, and schema padding. |
-| **Delta Lake (OneLake)** | Storage Layer | Open-format Parquet storage with ACID transactions across Medallion layers. |
-| **SQL Analytics Endpoint** | Virtualization & Views | Hosts T-SQL views to merge historical batch facts with live streaming telemetry. |
-| **Data Factory Pipelines** | Workflow Orchestration | Decouples and automates daily historical batch runs and 15-minute streaming micro-batches. |
-| **Power BI (Direct Lake)** | Analytics & Reporting | Direct Lake Semantic Model providing sub-second dashboard updates directly over OneLake Parquet storage. |
-
----
-
-## 💡 Architectural Choices & Technical Rationale
-
 ```mermaid
 flowchart LR
     %% Data Sources
@@ -96,6 +77,24 @@ flowchart LR
     style VIEW fill:#ce93d8,stroke:#4a148c,stroke-width:2px
     style PBI fill:#f48fb1,stroke:#880e4f,stroke-width:2px
 ```
+
+
+## 🧰 Tools & Microsoft Fabric Components Used
+
+| Component / Tool | Role in Architecture | Technical Details & Configuration |
+| --- | --- | --- |
+| **Microsoft Fabric F2 Capacity** | Core Infrastructure | Shared, serverless compute environment optimized to manage workloads under capacity limits. |
+| **Dataflow Gen2** | Batch Ingestion | Extracts and loads 5M+ historical CSV records into Delta Lake storage. |
+| **Fabric Eventstream** | Streaming Ingestion | Ingests real-time JSON flight telemetry into raw Bronze Lakehouse tables. |
+| **PySpark Notebooks** | Data Transformation | Handles schema enforcement, cleansing, delay metric logic, and schema padding. |
+| **Delta Lake (OneLake)** | Storage Layer | Open-format Parquet storage with ACID transactions across Medallion layers. |
+| **SQL Analytics Endpoint** | Virtualization & Views | Hosts T-SQL views to merge historical batch facts with live streaming telemetry. |
+| **Data Factory Pipelines** | Workflow Orchestration | Decouples and automates daily historical batch runs and 15-minute streaming micro-batches. |
+| **Power BI (Direct Lake)** | Analytics & Reporting | Direct Lake Semantic Model providing sub-second dashboard updates directly over OneLake Parquet storage. |
+
+---
+
+## 💡 Architectural Choices & Technical Rationale
 
 ### 1. Unified Layer: T-SQL Virtual View vs. Physical Delta MERGE
 
