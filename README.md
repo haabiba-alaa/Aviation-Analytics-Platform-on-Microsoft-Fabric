@@ -1,29 +1,65 @@
 ```mermaid
-flowchart TD
-    %% Custom Styling
-    classDef batch fill:#E3F2FD,stroke:#1565C0,stroke-width:2px;
-    classDef stream fill:#FFF3E0,stroke:#E65100,stroke-width:2px;
-    classDef lakehouse fill:#E8F5E9,stroke:#2E7D32,stroke-width:2px;
-    classDef sql fill:#F3E5F5,stroke:#6A1B9A,stroke-width:2px;
-    classDef bi fill:#FCE4EC,stroke:#C2185B,stroke-width:2px;
-
-    subgraph Batch_Pipeline["Batch Pipeline (Daily at 2:00 AM)"]
-        A[Batch Historical Files 5M+ Records] ::: batch --> B[Dataflow Gen2 Ingestion] ::: batch
-        B --> C[dbo.bronze_flights] ::: lakehouse
-        C --> D[PySpark nb_batch_medallion] ::: batch
-        D --> E[dbo.gold_fact_flights & Dimensions] ::: lakehouse
+flowchart LR
+    %% Data Sources
+    subgraph SOURCES["Data Sources"]
+        S1["Batch CSV Files<br/>(5M+ Records)"]
+        S2["Live Telemetry<br/>(Real-Time JSON)"]
     end
 
-    subgraph Streaming_Pipeline["Streaming Pipeline (Every 15-30 Mins)"]
-        F[Live Flight JSON Events] ::: stream --> G[Fabric Eventstream] ::: stream
-        G --> H[dbo.bronze_live_telemetry] ::: lakehouse
-        H --> I["PySpark Micro-Batch nb_stream_silver (trigger: availableNow)"] ::: stream
-        I --> J[dbo.silver_live_telemetry] ::: lakehouse
+    %% Ingestion Layer
+    subgraph INGEST["Ingestion Layer"]
+        I1["Dataflow Gen2"]
+        I2["Eventstream<br/>(ev_live_flight_stream)"]
     end
 
-    subgraph Unified_Analytics["Virtual Layer & Reporting"]
-        E --> K["T-SQL View: dbo.gold_vw_all_flights_unified (SQL Analytics Endpoint)"] ::: sql
-        J --> K
-        K --> L["Power BI Direct Lake Model (sm_aviation_analytics_directlake)"] ::: bi
+    %% Medallion Storage (OneLake / Delta)
+    subgraph MEDALLION["OneLake / Delta Storage (Medallion)"]
+        direction TB
+        B1[("dbo.bronze_flights")]
+        B2[("dbo.bronze_live_telemetry")]
+        
+        SV1[("dbo.silver_live_telemetry")]
+        
+        G1[("dbo.gold_fact_flights")]
+        G2[("dbo.gold_dim_airlines")]
+        G3[("dbo.gold_dim_airports")]
     end
+
+    %% Compute & Processing
+    subgraph COMPUTE["Spark Processing (Data Factory Orchestrated)"]
+        P1["PySpark Notebook<br/>(nb_batch_medallion)<br/><i>Scheduled Daily</i>"]
+        P2["PySpark Micro-Batch<br/>(nb_stream_silver)<br/><i>trigger(availableNow=True)</i><br/><i>Scheduled Every 15m</i>"]
+    end
+
+    %% Virtualization & Reporting
+    subgraph SERVING["Unified Serving & Power BI"]
+        VIEW["T-SQL Virtual View<br/><b>dbo.gold_vw_all_flights_unified</b><br/>(SQL Analytics Endpoint)"]
+        PBI["Power BI Direct Lake Model<br/><b>sm_aviation_analytics_directlake</b>"]
+    end
+
+    %% Batch Flow Connections
+    S1 --> I1 --> B1
+    B1 --> P1 --> G1
+    P1 --> G2
+    P1 --> G3
+
+    %% Streaming Flow Connections
+    S2 --> I2 --> B2
+    B2 --> P2 --> SV1
+
+    %% Serving Connections
+    G1 --> VIEW
+    SV1 --> VIEW
+    G2 -. Dimension Joins .-> VIEW
+    G3 -. Dimension Joins .-> VIEW
+    VIEW --> PBI
+
+    %% Node Styling
+    style SOURCES fill:#f9f9f9,stroke:#666,stroke-width:1px
+    style INGEST fill:#e1f5fe,stroke:#0288d1,stroke-width:2px
+    style MEDALLION fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
+    style COMPUTE fill:#fff3e0,stroke:#f57c00,stroke-width:2px
+    style SERVING fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    style VIEW fill:#ce93d8,stroke:#4a148c,stroke-width:2px
+    style PBI fill:#f48fb1,stroke:#880e4f,stroke-width:2px
 ```
