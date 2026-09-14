@@ -96,40 +96,46 @@ flowchart LR
 
 ## 💡 Architectural Choices & Technical Rationale
 
+## 💡 Architectural Choices & Technical Rationale
+
 ### 1. Unified Layer: T-SQL Virtual View vs. Physical Delta MERGE
 
-* **Decision:** Implemented a T-SQL `UNION ALL` view (`dbo.gold_vw_all_flights_unified`) in the SQL Analytics Endpoint instead of physically merging streaming records into `gold_fact_flights`.
-
+* **Challenge:** Merging live streaming records directly into the 5M+ row historical fact Delta table causes storage duplication and write-lock collisions (concurrency errors) when batch and streaming pipelines execute simultaneously.
+* **Decision:** Implemented a T-SQL `UNION ALL` view (`dbo.gold_vw_all_flights_unified`) in the SQL Analytics Endpoint instead of physically writing streaming records into `gold_fact_flights`.
 * **Rationale:**
-*  **Zero Storage Duplication:** Eliminates double-storing streaming records inside historical batch tables.
-*  **Prevents Write Lock Contention:** Avoids Delta write lock collisions when batch and streaming pipelines attempt to write to storage simultaneously.
-*  **Instant Visibility:** Telemetry written to `silver_live_telemetry` is immediately exposed in reports without requiring batch reprocessing.
+  * **Zero Storage Duplication:** Eliminates double-storing streaming records inside historical batch tables.
+  * **Prevents Write Lock Contention:** Avoids Delta Lake write-lock collisions when batch and streaming jobs write to storage at the same time.
+  * **Instant Visibility:** Telemetry written to `silver_live_telemetry` is immediately exposed in Power BI reports without requiring heavy batch reprocessing.
 
-
+---
 
 ### 2. Streaming Strategy: Micro-Batch (`availableNow=True`) vs. Continuous Streaming
 
+* **Challenge:** Continuous interactive Spark streaming jobs hold active Compute Units (CUs) indefinitely, causing `HTTP 430: TooManyRequestsForCapacity` throttling errors on an F2 SKU capacity.
 * **Decision:** Configured PySpark Structured Streaming using `.trigger(availableNow=True)` executed via scheduled Data Factory pipelines rather than running persistent `writeStream` jobs.
 * **Rationale:**
-*  **Capacity Optimization (F2 SKU):** Continuous interactive streaming jobs hold active Spark Compute Units (CUs), leading to `HTTP 430: TooManyRequestsForCapacity` errors on smaller F2 capacities.
-*  **Safe Resource Release:** Micro-batching processes accumulated telemetry in 20–30 seconds, writes checkpoints, and shuts down compute safely.
+  * **Capacity Optimization (F2 SKU):** Eliminates persistent CU consumption, keeping the workload within F2 capacity limits.
+  * **Safe Resource Release:** Micro-batching processes accumulated telemetry in 20–30 seconds, writes checkpoint state, and shuts down compute safely.
 
-
+---
 
 ### 3. Orchestration: Decoupled Data Factory Pipelines
 
+* **Challenge:** Combining resource-heavy daily batch transformations with high-frequency (15-minute) streaming jobs in a single pipeline leads to execution bottlenecks and cascading failure risks.
 * **Decision:** Built two independent Data Factory pipelines (`Batch_ingestion_bronze` and `Stream_ingestion_silver`).
 * **Rationale:**
-*  **Isolated Execution Schedules:** Isolates resource-heavy daily batch execution from high-frequency (15-minute) streaming workloads.
-*  **Fault Isolation:** Streaming network or telemetry generation failures will not stall or block daily historical financial/operational processing.
+  * **Isolated Execution Schedules:** Isolates heavy daily batch execution from high-frequency streaming micro-batches.
+  * **Fault Isolation:** Telemetry stream network drops or source failures will not stall or block daily historical batch processing.
 
-
+---
 
 ### 4. Semantic Layer: Direct Lake Mode
 
+* **Challenge:** Traditional Power BI Import mode requires scheduled dataset refreshes that introduce reporting latency, while DirectQuery causes slow query performance on large datasets.
 * **Decision:** Connected Power BI directly to OneLake Delta Parquet tables using **Direct Lake** mode.
 * **Rationale:**
-*  **Zero Refresh Latency:** Eliminates traditional scheduled Power BI import refreshes—data changes reflect in reports as soon as the micro-batch writes to Delta storage.
+  * **Zero Refresh Latency:** Eliminates scheduled Power BI dataset refreshes—visuals update automatically as soon as streaming micro-batches write to Delta storage.
+  * **Import-Level Performance:** Reads Parquet files directly from OneLake with sub-second query performance without loading data into memory.
 
 
 
