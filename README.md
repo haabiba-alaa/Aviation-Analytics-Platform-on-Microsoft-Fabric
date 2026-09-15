@@ -161,7 +161,7 @@ flowchart LR
 
 ### Step 4: Virtual Layer Unification
 
-* Executed T-SQL in the SQL Analytics Endpoint to generate the unified view:
+* Executed T-SQL in the SQL Analytics Endpoint to generate the unified view 
 
 ### Step 5: Data Factory Pipeline Orchestration
 
