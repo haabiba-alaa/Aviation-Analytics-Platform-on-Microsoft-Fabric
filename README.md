@@ -96,8 +96,6 @@ flowchart LR
 
 ## 💡 Architectural Choices & Technical Rationale
 
-## 💡 Architectural Choices & Technical Rationale
-
 ### 1. Unified Layer: T-SQL Virtual View vs. Physical Delta MERGE
 
 * **Challenge:** Merging live streaming records directly into the 5M+ row historical fact Delta table causes storage duplication and write-lock collisions (concurrency errors) when batch and streaming pipelines execute simultaneously.
