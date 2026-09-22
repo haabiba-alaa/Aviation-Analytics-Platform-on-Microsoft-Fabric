@@ -173,4 +173,3 @@ flowchart LR
 * Created custom semantic model `sm_aviation_analytics_directlake` from the SQL Analytics Endpoint selecting `gold_vw_all_flights_unified` and dimensions.
 * Established $1:*$ relationships from dimensions to the unified view.
 * Built DAX operational measures (`Total Flights`, `Delayed Flights`, `% On-Time Performance`, `Avg Departure Delay`).
-```
