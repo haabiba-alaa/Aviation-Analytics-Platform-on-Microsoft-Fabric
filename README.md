@@ -1,175 +1,206 @@
-# ✈️ Automated End-to-End Aviation Analytics Platform
+# ✈️ End-to-End Aviation Analytics Platform on Microsoft Fabric
 
-**Unified Medallion Architecture on Microsoft Fabric (F2 Capacity Optimized)**
-
-## 📌 Project Overview & Intent
-
-The objective of this project is to build an automated, end-to-end Aviation Analytics platform on **Microsoft Fabric** using an **F2 Capacity**. The platform unifies **5M+ historical batch records** with continuous **real-time streaming telemetry** into a single Power BI Direct Lake reporting layer.
-
-By combining a Medallion Architecture (Bronze $\rightarrow$ Silver $\rightarrow$ Gold) with a virtualized T-SQL abstraction layer, this system delivers immediate visibility into flight delays, fleet operations, and performance metrics without data duplication or capacity overages.
+**Medallion architecture (Bronze → Silver → Gold) unifying 5M+ historical flight records with simulated near-real-time telemetry, served through a Power BI Direct Lake semantic model. Built to run on a small F2 capacity.**
 
 ---
 
-## 🏗️ End-to-End System Architecture
+## 📌 Overview
+
+This project is a self-built, end-to-end data engineering and analytics platform on **Microsoft Fabric (F2 capacity)**. It combines:
+
+- **Batch:** 5M+ historical flight records loaded with Dataflow Gen2 and transformed with PySpark.
+- **Streaming:** simulated JSON flight telemetry ingested through Eventstream and processed with Spark Structured Streaming micro-batches.
+- **Serving:** a Direct Lake semantic model where historical and live facts share the same dimensions and are unified with DAX measures.
+
+> **Note on data:** the live telemetry is produced by a data generator, not a real flight feed. "Real-time" here means near-real-time: data becomes visible after the next 15-minute micro-batch.
+
+---
+
+## 🏗️ Architecture
 
 ```mermaid
 flowchart LR
-    %% Data Sources
     subgraph SOURCES["Data Sources"]
-        S1["Batch CSV Files<br/>(5M+ Records)"]
-        S2["Live Telemetry<br/>(Real-Time JSON)"]
+        S1["Batch CSV Files<br/>(5M+ records)"]
+        S2["Simulated Telemetry<br/>(JSON events)"]
     end
 
-    %% Ingestion Layer
-    subgraph INGEST["Ingestion Layer"]
+    subgraph INGEST["Ingestion"]
         I1["Dataflow Gen2"]
         I2["Eventstream<br/>(ev_live_flight_stream)"]
     end
 
-    %% Medallion Storage (OneLake / Delta)
-    subgraph MEDALLION["OneLake / Delta Storage (Medallion)"]
+    subgraph LAKE["Aviation_Lakehouse (OneLake / Delta)"]
         direction TB
-        B1[("dbo.bronze_flights")]
-        B2[("dbo.bronze_live_telemetry")]
-        
-        SV1[("dbo.silver_live_telemetry")]
-        
-        G1[("dbo.gold_fact_flights")]
-        G2[("dbo.gold_dim_airlines")]
-        G3[("dbo.gold_dim_airports")]
+        B1[("bronze_flights")]
+        B2[("bronze_live_telemetry")]
+        SV[("silver_live_telemetry")]
+        GF[("gold_fact_flights")]
+        GL[("gold_fact_live_flights")]
+        GD[("gold_dim_airlines<br/>gold_dim_airports<br/>gold_dim_date")]
     end
 
-    %% Compute & Processing
-    subgraph COMPUTE["Spark Processing (Data Factory Orchestrated)"]
-        P1["PySpark Notebook<br/>(nb_batch_medallion)<br/><i>Scheduled Daily</i>"]
-        P2["PySpark Micro-Batch<br/>(nb_stream_silver)<br/><i>trigger(availableNow=True)</i><br/><i>Scheduled Every 15m</i>"]
+    subgraph COMPUTE["Spark + Data Factory"]
+        P1["nb_batch_medallion<br/>(daily, 02:00)"]
+        P2["nb_stream_silver<br/>availableNow, every 15 min"]
+        P3["nb_stream_gold<br/>MERGE, after silver"]
     end
 
-    %% Virtualization & Reporting
-    subgraph SERVING["Unified Serving & Power BI"]
-        VIEW["T-SQL Virtual View<br/><b>dbo.gold_vw_all_flights_unified</b><br/>(SQL Analytics Endpoint)"]
-        PBI["Power BI Direct Lake Model<br/><b>sm_aviation_analytics_directlake</b>"]
+    subgraph SERVING["Serving"]
+        SM["Direct Lake Semantic Model<br/>sm_aviation_analytics_directlake"]
+        RPT["Power BI Report"]
     end
 
-    %% Batch Flow Connections
-    S1 --> I1 --> B1
-    B1 --> P1 --> G1
-    P1 --> G2
-    P1 --> G3
+    S1 --> I1 --> B1 --> P1 --> GF
+    P1 --> GD
+    S2 --> I2 --> B2 --> P2 --> SV --> P3 --> GL
 
-    %% Streaming Flow Connections
-    S2 --> I2 --> B2
-    B2 --> P2 --> SV1
-
-    %% Serving Connections
-    G1 --> VIEW
-    SV1 --> VIEW
-    G2 -. Dimension Joins .-> VIEW
-    G3 -. Dimension Joins .-> VIEW
-    VIEW --> PBI
-
-    %% Node Styling
-    style SOURCES fill:#f9f9f9,stroke:#666,stroke-width:1px
-    style INGEST fill:#e1f5fe,stroke:#0288d1,stroke-width:2px
-    style MEDALLION fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
-    style COMPUTE fill:#fff3e0,stroke:#f57c00,stroke-width:2px
-    style SERVING fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
-    style VIEW fill:#ce93d8,stroke:#4a148c,stroke-width:2px
-    style PBI fill:#f48fb1,stroke:#880e4f,stroke-width:2px
+    GF --> SM
+    GL --> SM
+    GD --> SM
+    SM --> RPT
 ```
 
+Historical and live data are **never physically merged**. They live in two Gold fact tables that share the same dimensions, and the semantic model unifies them in DAX.
 
-## 🧰 Tools & Microsoft Fabric Components Used
+---
 
-| Component / Tool | Role in Architecture | Technical Details & Configuration |
+## 🧰 Tech Stack
+
+| Component | Role |
+| --- | --- |
+| **Microsoft Fabric F2** | Capacity the whole platform runs on |
+| **Dataflow Gen2** | Batch ingestion of historical CSVs into Delta |
+| **Eventstream** | Streaming ingestion of JSON telemetry into Bronze |
+| **PySpark / Structured Streaming** | Cleansing, schema enforcement, delay logic, Silver and Gold loads |
+| **Delta Lake (OneLake)** | Storage with ACID transactions across all layers |
+| **Data Factory pipelines** | Orchestration of batch and streaming jobs |
+| **SQL analytics endpoint** | T-SQL access for validation and ad hoc queries |
+| **Power BI (Direct Lake) + DAX** | Semantic model and report |
+
+---
+
+## 🗂️ Data Model
+
+| Layer | Table | Description |
 | --- | --- | --- |
-| **Microsoft Fabric F2 Capacity** | Core Infrastructure | Shared, serverless compute environment optimized to manage workloads under capacity limits. |
-| **Dataflow Gen2** | Batch Ingestion | Extracts and loads 5M+ historical CSV records into Delta Lake storage. |
-| **Fabric Eventstream** | Streaming Ingestion | Ingests real-time JSON flight telemetry into raw Bronze Lakehouse tables. |
-| **PySpark Notebooks** | Data Transformation | Handles schema enforcement, cleansing, delay metric logic, and schema padding. |
-| **Delta Lake (OneLake)** | Storage Layer | Open-format Parquet storage with ACID transactions across Medallion layers. |
-| **SQL Analytics Endpoint** | Virtualization & Views | Hosts T-SQL views to merge historical batch facts with live streaming telemetry. |
-| **Data Factory Pipelines** | Workflow Orchestration | Decouples and automates daily historical batch runs and 15-minute streaming micro-batches. |
-| **Power BI (Direct Lake)** | Analytics & Reporting | Direct Lake Semantic Model providing sub-second dashboard updates directly over OneLake Parquet storage. |
+| Bronze | `bronze_flights` | Raw historical records |
+| Bronze | `bronze_live_telemetry` | Raw telemetry events from Eventstream |
+| Silver | `silver_live_telemetry` | Cleansed, typed telemetry with `flight_date`, delay flags and audit columns |
+| Gold | `gold_fact_flights` | Historical fact table |
+| Gold | `gold_fact_live_flights` | Live fact table, deduplicated with a deterministic key |
+| Gold | `gold_dim_airlines`, `gold_dim_airports`, `gold_dim_date` | Shared dimensions |
 
 ---
 
-## 💡 Architectural Choices & Technical Rationale
+## 💡 Design Decisions
 
-### 1. Unified Layer: T-SQL Virtual View vs. Physical Delta MERGE
+### 1. Two fact tables unified in the semantic model (not one merged table, not a view)
 
-* **Challenge:** Merging live streaming records directly into the 5M+ row historical fact Delta table causes storage duplication and write-lock collisions (concurrency errors) when batch and streaming pipelines execute simultaneously.
-* **Decision:** Implemented a T-SQL `UNION ALL` view (`dbo.gold_vw_all_flights_unified`) in the SQL Analytics Endpoint instead of physically writing streaming records into `gold_fact_flights`.
-* **Rationale:**
-  * **Zero Storage Duplication:** Eliminates double-storing streaming records inside historical batch tables.
-  * **Prevents Write Lock Contention:** Avoids Delta Lake write-lock collisions when batch and streaming jobs write to storage at the same time.
-  * **Instant Visibility:** Telemetry written to `silver_live_telemetry` is immediately exposed in Power BI reports without requiring heavy batch reprocessing.
+- **Challenge:** Live and historical data needed to appear in the same reports, but writing streaming rows into the 5M+ row batch fact table would couple two pipelines with different cadences and force frequent writes to a large table.
+- **Initial approach:** A T-SQL `UNION ALL` view over both sources, used as the semantic model source.
+- **Problem found:** Direct Lake reads Delta tables, not views. A model built on a view falls back to **DirectQuery**, re-running the joins over 5M+ rows on every visual and defeating the purpose of Direct Lake.
+- **Final design:** Model `gold_fact_flights` and `gold_fact_live_flights` as separate Direct Lake tables sharing the same dimensions, and combine them with DAX measures (for example `Total Flights = [Batch Flights] + [Live Flights]`). Fallback is set to **Direct Lake only** so any silent fallback surfaces as an error.
+- **Result:** No duplicated data, independent batch and streaming pipelines, and queries served from Delta files. *(Add measured before/after query times here.)*
 
----
+### 2. Micro-batch streaming (`availableNow=True`) instead of continuous streaming
 
-### 2. Streaming Strategy: Micro-Batch (`availableNow=True`) vs. Continuous Streaming
+- **Challenge:** A continuously running Spark streaming job holds compute indefinitely, which risks capacity throttling (`HTTP 430`) on an F2 SKU.
+- **Decision:** Structured Streaming with `.trigger(availableNow=True)`, run on a 15-minute schedule by Data Factory.
+- **Result:** Each run processes whatever has accumulated, checkpoints its progress, and releases compute. The trade-off is latency of up to 15 minutes instead of seconds.
 
-* **Challenge:** Continuous interactive Spark streaming jobs hold active Compute Units (CUs) indefinitely, causing `HTTP 430: TooManyRequestsForCapacity` throttling errors on an F2 SKU capacity.
-* **Decision:** Configured PySpark Structured Streaming using `.trigger(availableNow=True)` executed via scheduled Data Factory pipelines rather than running persistent `writeStream` jobs.
-* **Rationale:**
-  * **Capacity Optimization (F2 SKU):** Eliminates persistent CU consumption, keeping the workload within F2 capacity limits.
-  * **Safe Resource Release:** Micro-batching processes accumulated telemetry in 20–30 seconds, writes checkpoint state, and shuts down compute safely.
+### 3. Idempotent Silver → Gold with Delta MERGE
 
----
+- **Challenge:** Eventstream delivery and pipeline reruns can produce duplicates, and the telemetry has no unique event ID.
+- **Decision:** `nb_stream_gold` uses `foreachBatch` with a `MERGE` on a hash key (flight number, airline, event timestamp), inserting only new rows.
+- **Result:** Re-running the pipeline without new events leaves row counts unchanged.
 
-### 3. Orchestration: Decoupled Data Factory Pipelines
+### 4. Decoupled pipelines with a clear dependency chain
 
-* **Challenge:** Combining resource-heavy daily batch transformations with high-frequency (15-minute) streaming jobs in a single pipeline leads to execution bottlenecks and cascading failure risks.
-* **Decision:** Built two independent Data Factory pipelines (`Batch_ingestion_bronze` and `Stream_ingestion_silver`).
-* **Rationale:**
-  * **Isolated Execution Schedules:** Isolates heavy daily batch execution from high-frequency streaming micro-batches.
-  * **Fault Isolation:** Telemetry stream network drops or source failures will not stall or block daily historical batch processing.
+- `Batch_ingestion_bronze`: Dataflow Gen2 → `nb_batch_medallion`, daily at 02:00.
+- `Stream_ingestion_silver`: `nb_stream_silver` → `nb_stream_gold` (runs on success of silver), every 15 minutes.
+- Batch and streaming run independently, so a telemetry failure never blocks the daily historical load. Inside the streaming pipeline, Gold only runs when Silver succeeds.
 
----
+### 5. Direct Lake semantic layer
 
-### 4. Semantic Layer: Direct Lake Mode
-
-* **Challenge:** Traditional Power BI Import mode requires scheduled dataset refreshes that introduce reporting latency, while DirectQuery causes slow query performance on large datasets.
-* **Decision:** Connected Power BI directly to OneLake Delta Parquet tables using **Direct Lake** mode.
-* **Rationale:**
-  * **Zero Refresh Latency:** Eliminates scheduled Power BI dataset refreshes—visuals update automatically as soon as streaming micro-batches write to Delta storage.
-  * **Import-Level Performance:** Reads Parquet files directly from OneLake with sub-second query performance without loading data into memory.
-
-
+- Direct Lake avoids scheduled import refreshes and avoids DirectQuery's per-query cost. Needed columns are loaded from Delta/Parquet into memory on demand and refreshed when the underlying tables change (reframing), so new micro-batch data appears shortly after it lands rather than instantly.
 
 ---
 
-## 🛠️ Step-by-Step Implementation Guide
+## 🛠️ Implementation Walkthrough
 
-### Step 1: Medallion Storage & Schema Design
+1. **Lakehouse and schemas:** created `Aviation_Lakehouse` with Bronze, Silver and Gold tables.
+2. **Batch pipeline:** Dataflow Gen2 lands 5M+ records into `bronze_flights`; `nb_batch_medallion` builds `gold_fact_flights`, the dimensions, and `flight_date`.
+3. **Streaming ingestion:** Eventstream `ev_live_flight_stream` writes telemetry JSON to `bronze_live_telemetry`.
+4. **Silver:** `nb_stream_silver` casts types, standardizes keys, derives `event_timestamp` and `flight_date`, computes delay flags, pads the schema for batch compatibility, and stamps `silver_ingestion_timestamp`.
+5. **Gold:** `nb_stream_gold` upserts into `gold_fact_live_flights` and optionally builds an hourly aggregate.
+6. **Orchestration:** two Data Factory pipelines with the schedules above.
+7. **Semantic model:** `sm_aviation_analytics_directlake` with five tables, 1:* relationships from each dimension to both fact tables, inactive destination relationships activated through `USERELATIONSHIP`, and fallback set to Direct Lake only.
+8. **Report:** a one-page Power BI report (KPIs, delays by airline, top destinations, monthly trend, batch vs. live split).
 
-* Provisioned `Aviation_Lakehouse` in Fabric.
-* Configured target schemas:
-* `dbo.bronze_flights` / `dbo.bronze_live_telemetry`: Raw landing tables.
-* `dbo.silver_live_telemetry`: Cleansed, schema-padded telemetry with standardized delay metrics.
-* `dbo.gold_fact_flights` & Dimensions: Historical fact and dimension tables (`gold_dim_airlines`, `gold_dim_airports`).
+---
 
-### Step 2: Historical Batch Pipeline Construction
+## 📊 Key DAX Measures
 
-* Configured Dataflow Gen2 to land 5M+ historical flight records.
-* Implemented `nb_batch_medallion` to process Bronze data into Gold dimensional models.
+```dax
+Batch Flights = COUNTROWS ( gold_fact_flights )
+Live Flights  = COUNTROWS ( gold_fact_live_flights )
+Total Flights = [Batch Flights] + [Live Flights]
 
-### Step 3: Streaming Telemetry Processing
+Delayed Flights =
+CALCULATE ( COUNTROWS ( gold_fact_flights ), gold_fact_flights[is_delayed_flag] = 1 )
+    + CALCULATE ( COUNTROWS ( gold_fact_live_flights ), gold_fact_live_flights[is_delayed_flag] = 1 )
 
-* Configured Fabric Eventstream (`ev_live_flight_stream`) to route incoming flight telemetry JSON into `dbo.bronze_live_telemetry`.
-* Developed `nb_stream_silver` using PySpark Structured Streaming with `.trigger(availableNow=True)` and `.toTable("dbo.silver_live_telemetry")`.
+Cancelled Flights =
+CALCULATE ( COUNTROWS ( gold_fact_flights ), gold_fact_flights[is_cancelled_flag] = 1 )
+    + CALCULATE ( COUNTROWS ( gold_fact_live_flights ), gold_fact_live_flights[is_cancelled_flag] = 1 )
 
-### Step 4: Virtual Layer Unification
+Operated Flights = [Total Flights] - [Cancelled Flights]
 
-* Executed T-SQL in the SQL Analytics Endpoint to generate the unified view 
+% On-Time Performance = 1 - DIVIDE ( [Delayed Flights], [Operated Flights] )
 
-### Step 5: Data Factory Pipeline Orchestration
+Avg Departure Delay =
+DIVIDE (
+    SUM ( gold_fact_flights[departure_delay_mins] ) + SUM ( gold_fact_live_flights[departure_delay_mins] ),
+    COUNT ( gold_fact_flights[departure_delay_mins] ) + COUNT ( gold_fact_live_flights[departure_delay_mins] )
+)
+```
 
-* Created **`Batch_ingestion_bronze`**: Sequenced Dataflow Gen2 $\rightarrow$ Batch Notebook, scheduled Daily at 02:00 AM.
-* Created **`Stream_ingestion_silver`**: Single Notebook activity running `nb_stream_silver`, scheduled on a 15-minute recurring trigger.
+`Avg Departure Delay` is a weighted average across both tables rather than an average of two averages.
 
-### Step 6: Power BI Direct Lake Semantic Modeling
+---
 
-* Created custom semantic model `sm_aviation_analytics_directlake` from the SQL Analytics Endpoint selecting `gold_vw_all_flights_unified` and dimensions.
-* Established $1:*$ relationships from dimensions to the unified view.
-* Built DAX operational measures (`Total Flights`, `Delayed Flights`, `% On-Time Performance`, `Avg Departure Delay`).
+## ✅ Validation
+
+- Row counts: `Total Flights` in Power BI matches `COUNT(gold_fact_flights) + COUNT(gold_fact_live_flights)` in T-SQL.
+- Dimension keys are unique and fact tables have no orphan keys.
+- No duplicate `flight_key` values in `gold_fact_live_flights`; re-running the stream pipeline with no new events leaves counts unchanged.
+- Report loads with fallback set to **Direct Lake only** with no errors.
+- Performance Analyzer shows no DirectQuery events.
+
+---
+
+## 📈 Results
+
+| Metric | Value |
+| --- | --- |
+| Historical rows | 5M+ *(add exact count)* |
+| Streaming micro-batch duration | *(add measured seconds)* |
+| Report query time with view (DirectQuery fallback) | *(add)* |
+| Report query time after redesign (Direct Lake) | *(add)* |
+| Streaming pipeline cadence | Every 15 minutes |
+
+## 🖼️ Screenshots
+
+*(Add: report page, semantic model relationship diagram, both pipeline runs, Live Flights increasing after a micro-batch, Performance Analyzer.)*
+
+---
+
+## ⚠️ Limitations and Next Steps
+
+- Telemetry is simulated; replacing it with a real feed would require handling late, out-of-order and malformed events.
+- `is_cancelled_flag` and arrival delays are defaulted to 0 in the live stream, so cancellation metrics reflect historical data only.
+- Missing live delay values are coalesced to 0, which can slightly understate average delay.
+- Near-real-time latency is bounded by the 15-minute schedule and Direct Lake reframing.
+- Not yet implemented: automated data quality checks, alerting and monitoring, Git integration and CI/CD, incremental loading for the batch layer, and unit tests.
+- The historical and live datasets cover different time periods, so monthly trends show a gap between them.
